@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager</title>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 650px;
+        margin: 40px;
+        line-height: 1.5;
+      }
+
+      button,
+      input {
+        padding: 7px 10px;
+        margin: 4px 4px 4px 0;
+      }
+
+      section {
+        margin-top: 30px;
+      }
+
+      .task {
+        padding: 12px 0;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .task button {
+        margin-top: 8px;
+      }
+
+      .status {
+        margin-left: 10px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Task Manager</h1>
+
+    <div>
+      <button onclick="location.href = '/oauth2/authorization/keycloak'">
+        Login
+      </button>
+      <button onclick="location.href = '/logout'">Logout</button>
+    </div>
+
+    <section>
+      <h2>Add task</h2>
+      <input type="text" id="taskTitle" placeholder="Task title" />
+      <button onclick="createTask()">Add</button>
+      <p>Creating, updating and deleting tasks requires the ADMIN role.</p>
+    </section>
+
+    <section>
+      <h2>Tasks</h2>
+      <button onclick="loadTasks()">Refresh</button>
+      <div id="taskList"></div>
+    </section>
+
+    <script>
+      async function loadTasks() {
+        const response = await fetch("/api/tasks");
+
+        if (!response.ok) {
+          alert("Failed to load tasks. HTTP " + response.status);
+          return;
+        }
+
+        const tasks = await response.json();
+        const list = document.getElementById("taskList");
+        list.replaceChildren();
+
+        for (const task of tasks) {
+          const item = document.createElement("div");
+          item.className = "task";
+
+          const title = document.createElement("strong");
+          title.textContent = task.title;
+
+          const status = document.createElement("span");
+          status.className = "status";
+          status.textContent = task.completed ? "Completed" : "Pending";
+
+          const toggleButton = document.createElement("button");
+          toggleButton.textContent = task.completed ? "Reopen" : "Complete";
+          toggleButton.onclick = () => toggleCompleted(task.id);
+
+          const deleteButton = document.createElement("button");
+          deleteButton.textContent = "Delete";
+          deleteButton.onclick = () => deleteTask(task.id);
+
+          item.append(
+            title,
+            status,
+            document.createElement("br"),
+            toggleButton,
+            deleteButton,
+          );
+
+          list.appendChild(item);
+        }
+      }
+
+      async function createTask() {
+        const input = document.getElementById("taskTitle");
+        const title = input.value.trim();
+
+        if (!title) {
+          return;
+        }
+
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: title,
+            description: "",
+            completed: false,
+          }),
+        });
+
+        if (!response.ok) {
+          alert("Failed to create task. HTTP " + response.status);
+          return;
+        }
+
+        input.value = "";
+        await loadTasks();
+      }
+
+      async function toggleCompleted(id) {
+        const response = await fetch("/api/tasks/" + id);
+
+        if (!response.ok) {
+          alert("Failed to get task. HTTP " + response.status);
+          return;
+        }
+
+        const task = await response.json();
+
+        const updateResponse = await fetch("/api/tasks/" + id, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            completed: !task.completed,
+          }),
+        });
+
+        if (!updateResponse.ok) {
+          alert("Failed to update task. HTTP " + updateResponse.status);
+          return;
+        }
+
+        await loadTasks();
+      }
+
+      async function deleteTask(id) {
+        const response = await fetch("/api/tasks/" + id, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          alert("Failed to delete task. HTTP " + response.status);
+          return;
+        }
+
+        await loadTasks();
+      }
+
+      loadTasks();
+    </script>
+  </body>
+</html>

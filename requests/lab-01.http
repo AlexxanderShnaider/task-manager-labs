@@ -1,0 +1,110 @@
+# Lab 1 - Task Manager API
+# Compatible with HTTP clients such as VS Code REST Client and IntelliJ HTTP Client.
+# Start Spring Boot on port 8080 and Keycloak on port 8081.
+# Replace token placeholders locally before executing protected requests.
+# Never commit real passwords, client secrets, or access tokens.
+
+@baseUrl = http://localhost:8080
+@keycloakUrl = http://localhost:8081
+@realm = demo-realm
+@clientId = spring-client
+@clientSecret = REPLACE_WITH_CLIENT_SECRET
+@adminUsername = admin_user
+@adminPassword = REPLACE_WITH_ADMIN_PASSWORD
+@userUsername = regular_user
+@userPassword = REPLACE_WITH_USER_PASSWORD
+@adminToken = REPLACE_WITH_ADMIN_ACCESS_TOKEN
+@userToken = REPLACE_WITH_USER_ACCESS_TOKEN
+@taskId = 1
+
+### 1. Get administrator access token (200 OK)
+# Requires Direct access grants enabled for spring-client in Keycloak.
+# Copy the access_token from the response into @adminToken above.
+POST {{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{clientId}}&client_secret={{clientSecret}}&username={{adminUsername}}&password={{adminPassword}}
+
+### 2. Get regular user access token (200 OK)
+# Copy the access_token into @userToken above.
+POST {{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{clientId}}&client_secret={{clientSecret}}&username={{userUsername}}&password={{userPassword}}
+
+### 3. List all tasks (public; 200 OK)
+GET {{baseUrl}}/api/tasks
+Accept: application/json
+
+### 4. Get a task by ID (public; 200 OK)
+# Set @taskId to an existing ID.
+GET {{baseUrl}}/api/tasks/{{taskId}}
+Accept: application/json
+
+### 5. Create task as ADMIN (201 Created)
+# After this request, copy the response id into @taskId above.
+POST {{baseUrl}}/api/tasks
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "Prepare lab report",
+  "description": "Review the Spring Security requirements",
+  "completed": false
+}
+
+### 6. Update task as ADMIN (200 OK)
+PUT {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "id": {{taskId}},
+  "title": "Prepare lab report",
+  "description": "Review the Spring Security requirements",
+  "completed": true
+}
+
+### 7. Create task without authentication (401 Unauthorized)
+POST {{baseUrl}}/api/tasks
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "Unauthenticated request",
+  "description": "Should be rejected",
+  "completed": false
+}
+
+### 8. Create task as USER (403 Forbidden; SecurityFilterChain)
+POST {{baseUrl}}/api/tasks
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "title": "Forbidden request",
+  "description": "Regular users cannot create tasks",
+  "completed": false
+}
+
+### 9. Update task as USER (403 Forbidden; @PreAuthorize)
+# Use a valid USER token and an existing task ID. This demonstrates method security.
+PUT {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "id": {{taskId}},
+  "title": "Forbidden update",
+  "description": "Regular users cannot update tasks",
+  "completed": true
+}
+
+### 10. Delete task as USER (403 Forbidden; SecurityFilterChain)
+DELETE {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{userToken}}
+
+### 11. Delete task as ADMIN (204 No Content)
+# Run this LAST, after GET and PUT examples.
+DELETE {{baseUrl}}/api/tasks/{{taskId}}
+Authorization: Bearer {{adminToken}}
