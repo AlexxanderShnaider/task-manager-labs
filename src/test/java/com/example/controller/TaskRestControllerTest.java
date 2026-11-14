@@ -28,8 +28,7 @@ class TaskRestControllerTest {
     @Test
     void getAllTasks_returnsOkAndTaskList() {
         TaskDto dto = new TaskDto(
-                1L, "Task", "Description", false
-        );
+                1L, "Task", "Description", false);
 
         when(taskService.getAllTasks()).thenReturn(List.of(dto));
 
@@ -45,8 +44,7 @@ class TaskRestControllerTest {
     void getTaskById_existingId_returnsOk() {
         Long id = 1L;
         TaskDto dto = new TaskDto(
-                id, "Task", "Description", false
-        );
+                id, "Task", "Description", false);
 
         when(taskService.getTaskById(id)).thenReturn(dto);
 
@@ -59,22 +57,18 @@ class TaskRestControllerTest {
     }
 
     @Test
-    void createTask_validDto_returnsCreated() {
+    void createTask_validDto_returnsCreatedTask() {
         TaskDto input = new TaskDto(
-                null, "New task", "Description", false
-        );
+                null, "New task", "Description", false);
 
         TaskDto created = new TaskDto(
-                10L, "New task", "Description", false
-        );
+                10L, "New task", "Description", false);
 
         when(taskService.createTask(input)).thenReturn(created);
 
-        ResponseEntity<TaskDto> response = controller.createTask(input);
+        TaskDto result = controller.createTask(input);
 
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals(created, response.getBody());
-
+        assertEquals(created, result);
         verify(taskService).createTask(input);
     }
 
@@ -82,8 +76,7 @@ class TaskRestControllerTest {
     void updateTask_existingId_returnsUpdatedTask() {
         Long id = 1L;
         TaskDto dto = new TaskDto(
-                id, "Updated", "Description", true
-        );
+                id, "Updated", "Description", true);
 
         when(taskService.updateTask(id, dto)).thenReturn(dto);
 

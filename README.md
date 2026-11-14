@@ -8,6 +8,7 @@ A Spring Boot task management application developed as part of a series of labor
 | --- | ----------------------------------- | ----------------------------------------------------------------------------- |
 | 1   | Spring Security, CRUD, OIDC and JWT | [lab-01](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-01) |
 | 2   | Unit Testing, Mockito and JaCoCo    | [lab-02](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-02) |
+| 3 | Custom Annotations and Spring MVC Extensions | [lab-03](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-03) |
 
 Each Git tag represents the project state after completing the corresponding laboratory assignment.
 
@@ -291,6 +292,113 @@ The final source code does not contain the introduced defect.
 
 ---
 
+---
+
+## Lab 3 — Custom Annotations
+
+The third laboratory assignment demonstrates three different mechanisms for creating and processing custom annotations in a Spring Boot application.
+
+### Implemented Annotations
+
+| Annotation | Mechanism | Purpose |
+|------------|-----------|---------|
+| `@ValidTaskDetails` | Bean Validation Constraint | Validates the relationship between task title and description |
+| `@CreateTaskEndpoint` | Composed Annotation | Combines POST request mapping and HTTP 201 Created status |
+| `@CurrentUsername` | MVC Argument Resolver | Automatically injects the current user's principal name into a controller parameter |
+
+### 1. Bean Validation — `@ValidTaskDetails`
+
+A class-level constraint was added to `TaskDto`.
+
+The corresponding `TaskDetailsValidator` checks that a task description does not simply repeat its title, ignoring leading/trailing whitespace and letter case.
+
+The validation mechanism is integrated into POST and PUT requests using `@Valid`.
+
+**Expected behavior:**
+
+- Valid task details are accepted.
+- An empty description is allowed.
+- Matching title and description produce a validation error.
+- Invalid requests return HTTP 400 Bad Request.
+
+### 2. Composed Annotation — `@CreateTaskEndpoint`
+
+The custom annotation combines two Spring MVC annotations:
+
+- `@RequestMapping(method = RequestMethod.POST)`
+- `@ResponseStatus(HttpStatus.CREATED)`
+
+It is applied to `TaskRestController.createTask()`.
+
+This demonstrates how a single custom annotation can provide the same routing and response status behavior as the original annotations.
+
+A MockMvc test verifies that POST `/api/tasks` is correctly mapped and returns HTTP 201 Created.
+
+### 3. MVC Argument Resolver — `@CurrentUsername`
+
+A custom argument resolution mechanism was implemented using `HandlerMethodArgumentResolver`.
+
+The implementation consists of:
+
+- `@CurrentUsername` — identifies controller parameters requiring automatic resolution.
+- `CurrentUsernameResolver` — checks supported parameters and extracts the current principal name.
+- `WebConfig` — registers the resolver with Spring MVC.
+
+The following endpoint demonstrates the mechanism:
+
+```http
+GET /api/tasks/whoami
+```
+
+Example response:
+
+```json
+{
+  "username": "9be3e6f7-b87c-4f9c-9036-9d6289dad4e1"
+}
+```
+
+For JWT authentication, the principal name may be the Keycloak user ID (the `sub` claim), rather than the human-readable username.
+
+If no principal is available, the resolver returns `"anonymous"`.
+
+### Testing
+
+JUnit 5, Mockito, Jakarta Validation, and Spring MockMvc are used to verify the three annotation mechanisms.
+
+| Test Class | Tests | Description |
+|------------|------:|-------------|
+| `TaskDetailsValidatorTest` | 2 | Valid and invalid DTO validation |
+| `CurrentUsernameResolverTest` | 3 | Parameter recognition and principal resolution |
+| `TaskAnnotationsMvcTest` | 3 | HTTP routing, response status, validation, and argument injection |
+| **New tests** | **8** | |
+| **Total tests (Labs 1–3)** | **30** | |
+
+The tests cover all eight acceptance criteria:
+
+- AC1–AC3: Bean Validation constraint behavior.
+- AC4–AC5: Composed annotation routing and response status.
+- AC6–AC7: Argument resolver parameter support and value extraction.
+- AC8: Resolved argument usage in a controller response.
+
+Run the complete test suite:
+
+```bash
+mvn clean verify
+```
+
+The tests do not require a running PostgreSQL database or Keycloak server.
+
+### Screenshots
+
+| Evidence | Screenshot |
+|----------|------------|
+| Successful Maven test execution | [1.png](screenshots/lab-03/1.png) |
+| Invalid task details (400 Bad Request) | [2.png](screenshots/lab-03/2.png) |
+| Task creation (201 Created) | [3.png](screenshots/lab-03/3.png) |
+| Current user resolution (200 OK) | [4.png](screenshots/lab-03/4.png) |
+
+
 ## Notes
 
 This application is intended for educational use and local development.
@@ -300,3 +408,6 @@ This application is intended for educational use and local development.
 - Browser-based sessions require appropriate CSRF protection in production.
 - Development credentials should not be used in a production environment.
 - Maven build outputs and generated reports are excluded from Git and can be regenerated locally.
+
+
+
