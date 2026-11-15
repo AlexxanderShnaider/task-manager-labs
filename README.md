@@ -10,6 +10,7 @@ A Spring Boot task management application developed as part of a series of labor
 | 2   | Unit Testing, Mockito and JaCoCo    | [lab-02](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-02) |
 | 3 | Custom Annotations and Spring MVC Extensions | [lab-03](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-03) |
 | 4 | Aspect-Oriented Programming (AOP) | [lab-04](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-04) |
+| 5 | Asynchronous Processing | [lab-05](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-05) |
 
 Each Git tag represents the project state after completing the corresponding laboratory assignment.
 
@@ -550,6 +551,143 @@ mvn clean verify
 | Invalid task ID returns HTTP 400 | [4.png](screenshots/lab-04/4.png) |
 | Successful task creation | [5.png](screenshots/lab-04/5.png) |
 | Audit history containing the created task | [6.png](screenshots/lab-04/6.png) |
+
+
+---
+
+## Lab 5 — Asynchronous Processing
+
+The fifth laboratory assignment introduces asynchronous task execution in Spring Boot using `@Async`, `CompletableFuture`, and explicitly configured thread pools.
+
+### Implemented Functionality
+
+Three simulated slow operations were implemented in `TaskAsyncWorker`:
+
+| Operation | Method | Description |
+|-----------|--------|-------------|
+| Notification | `sendNotification()` | Fire-and-forget notification |
+| Report generation | `generateReport()` | Asynchronous report generation |
+| External status | `checkExternalStatus()` | Simulated external API request |
+
+Each operation simulates a delay to demonstrate asynchronous execution.
+
+### 1. Custom Thread Pool
+
+`AsyncConfig` enables asynchronous execution using `@EnableAsync`.
+
+A custom `ThreadPoolTaskExecutor` is configured with:
+
+- Core pool size: 2
+- Maximum pool size: 4
+- Queue capacity: 2
+- Thread name prefix: `task-async-`
+
+All `@Async` worker methods explicitly use this executor.
+
+### 2. Fire-and-Forget
+
+Notifications are executed asynchronously without waiting for completion.
+
+Endpoint:
+
+`POST /api/tasks/async/notify/{id}`
+
+The request returns HTTP 202 Accepted while notification processing continues in a separate thread.
+
+### 3. Parallel Execution
+
+Two independent asynchronous operations are started:
+
+- Report generation
+- External status checking
+
+Both return `CompletableFuture<String>`.
+
+Their results are combined using `thenCombine()`.
+
+Endpoint:
+
+`GET /api/tasks/async/summary/{id}`
+
+The operations can execute concurrently, reducing total processing time compared to sequential execution.
+
+### 4. Error Handling
+
+Asynchronous failures are handled using `exceptionally()`.
+
+If an external operation fails, the application logs the error and returns a fallback result instead of failing the entire request.
+
+Example:
+
+`GET /api/tasks/async/summary/15?fail=true`
+
+For fire-and-forget methods returning `void`, errors are logged using `AsyncUncaughtExceptionHandler`.
+
+Example:
+
+`POST /api/tasks/async/notify/15?fail=true`
+
+### 5. Timeout Handling
+
+`CompletableFuture.orTimeout()` limits waiting time to 2 seconds.
+
+A simulated slow external operation takes 4 seconds.
+
+Endpoint:
+
+`GET /api/tasks/async/summary/15?slow=true`
+
+After the timeout, the application returns a fallback value.
+
+The timeout limits waiting for the result but does not necessarily cancel the underlying running task.
+
+### 6. Executor Overload
+
+A separate executor demonstrates controlled resource exhaustion.
+
+Configuration:
+
+- Core pool size: 1
+- Maximum pool size: 1
+- Queue capacity: 1
+
+Submitting three slow tasks causes the third task to be rejected.
+
+Endpoint:
+
+`POST /api/tasks/async/overload`
+
+`TaskRejectedException` is handled by `AsyncTaskExceptionHandler`, returning HTTP 503 Service Unavailable with a clear error message.
+
+### Testing
+
+JUnit 5, Mockito, and Spring Test are used to verify asynchronous behavior.
+
+| Test Class | Tests | Description |
+|------------|------:|-------------|
+| `TaskAsyncServiceTest` | 4 | Dispatch, result combination, error fallback, timeout |
+| `AsyncExecutionTest` | 2 | Concurrent execution, thread prefix, non-blocking invocation |
+| `TaskAsyncOverloadTest` | 2 | Pool saturation and HTTP 503 handling |
+| **New tests** | **8** | |
+
+The tests verify actual concurrent execution using `CountDownLatch`, without relying only on execution time measurements.
+
+Run all tests:
+
+`mvn clean verify`
+
+### Screenshots
+
+| Evidence | Screenshot |
+|----------|------------|
+| Successful Maven test execution | [1.png](screenshots/lab-05/1.png) |
+| Fire-and-forget notification | [2.png](screenshots/lab-05/2.png) |
+| Combined asynchronous results | [3.png](screenshots/lab-05/3.png) |
+| External service failure fallback | [4.png](screenshots/lab-05/4.png) |
+| Timeout handling | [5.png](screenshots/lab-05/5.png) |
+| Async void exception handling | [6.png](screenshots/lab-05/6.png) |
+| Executor overload and HTTP 503 | [7.png](screenshots/lab-05/7.png) |
+
 
 
 ## Notes
