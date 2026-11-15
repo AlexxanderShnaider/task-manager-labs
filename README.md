@@ -9,6 +9,7 @@ A Spring Boot task management application developed as part of a series of labor
 | 1   | Spring Security, CRUD, OIDC and JWT | [lab-01](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-01) |
 | 2   | Unit Testing, Mockito and JaCoCo    | [lab-02](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-02) |
 | 3 | Custom Annotations and Spring MVC Extensions | [lab-03](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-03) |
+| 4 | Aspect-Oriented Programming (AOP) | [lab-04](https://github.com/AlexxanderShnaider/task-manager-labs/tree/lab-04) |
 
 Each Git tag represents the project state after completing the corresponding laboratory assignment.
 
@@ -397,6 +398,158 @@ The tests do not require a running PostgreSQL database or Keycloak server.
 | Invalid task details (400 Bad Request) | [2.png](screenshots/lab-03/2.png) |
 | Task creation (201 Created) | [3.png](screenshots/lab-03/3.png) |
 | Current user resolution (200 OK) | [4.png](screenshots/lab-03/4.png) |
+
+
+---
+
+## Lab 4 — Aspect-Oriented Programming (AOP)
+
+The fourth laboratory assignment introduces Spring AOP and demonstrates how custom annotations and aspects can implement cross-cutting functionality without modifying the main business logic.
+
+### Implemented Aspects
+
+Three custom annotations and their corresponding aspects were implemented.
+
+| Annotation | Aspect | Functionality | Advice |
+|------------|--------|---------------|--------|
+| `@TaskAudit` | `TaskAuditAspect` | Records successful task operations | `@Around` |
+| `@MeasureTaskDuration` | `TaskTimingAspect` | Measures execution time and counts method invocations | `@Around` |
+| `@RequirePositiveTaskId` | `TaskIdAspect` | Rejects invalid task IDs before method execution | `@Before` |
+
+All three aspects use annotation-based pointcuts and are applied to existing Task Manager service methods.
+
+### 1. Task Auditing
+
+The `@TaskAudit` annotation identifies operations that should be recorded in the audit history.
+
+It is applied to task creation, updating, and deletion.
+
+`TaskAuditAspect` intercepts the method call, executes the original operation, obtains the task ID, and records the operation through `TaskAuditTrail`.
+
+The annotation value determines the action type: `CREATED`, `UPDATED`, or `DELETED`.
+
+Audit records contain the action, task ID, and timestamp. They are stored in memory and written to the application log.
+
+Audit history can be retrieved by an administrator:
+
+```http
+GET /api/tasks/aop/audit
+```
+
+### 2. Execution Time Measurement
+
+The `@MeasureTaskDuration` annotation enables execution time measurement for selected service methods.
+
+`TaskTimingAspect` uses `@Around` advice to:
+
+- Record the start time using `System.nanoTime()`.
+- Execute the intercepted method through `ProceedingJoinPoint.proceed()`.
+- Calculate the execution duration.
+- Save the duration and invocation count in `TaskTimingMetrics`.
+
+The `finally` block ensures that execution time is recorded even if the intercepted method throws an exception.
+
+### 3. Task ID Validation
+
+The `@RequirePositiveTaskId` annotation is applied to service methods that receive a task ID.
+
+`TaskIdAspect` uses `@Before` advice to validate the first method argument.
+
+If the ID is zero, negative, missing, or not a `Long`, an `IllegalArgumentException` is thrown before the original method executes.
+
+`TaskInputExceptionHandler` converts this exception into HTTP 400 Bad Request.
+
+Example:
+
+```http
+GET /api/tasks/0
+```
+
+### 4. Self-Invocation Demonstration
+
+A separate `TaskAopDemoService` demonstrates the self-invocation limitation of Spring AOP.
+
+The same annotated method, `measuredStep()`, is called in two ways:
+
+**External invocation:**
+
+```http
+GET /api/tasks/aop/external
+```
+
+The call passes through the Spring AOP proxy, so the timing aspect executes.
+
+Expected result:
+
+```json
+{
+  "call": "external",
+  "result": "Task operation executed",
+  "aspectTriggered": true,
+  "countBefore": 0,
+  "countAfter": 1
+}
+```
+
+**Internal invocation:**
+
+```http
+GET /api/tasks/aop/internal
+```
+
+The service calls `this.measuredStep()` from another method of the same class.
+
+This invocation bypasses the AOP proxy, so the timing aspect does not execute.
+
+Example result after the external request:
+
+```json
+{
+  "call": "internal",
+  "result": "Task operation executed",
+  "aspectTriggered": false,
+  "countBefore": 1,
+  "countAfter": 1
+}
+```
+
+The counter values depend on previous requests. The important distinction is whether the aspect was triggered.
+
+This behavior is intentional and demonstrates the proxy-based nature of Spring AOP.
+
+### Testing
+
+JUnit 5, Mockito, and Spring Test are used to verify aspect behavior.
+
+| Test Class | Tests | Description |
+|------------|------:|-------------|
+| `TaskAuditAspectTest` | 2 | Successful auditing and handling failed operations |
+| `TaskTimingAspectTest` | 2 | Execution measurement and exception handling |
+| `TaskIdAspectTest` | 2 | Acceptance and rejection of task IDs |
+| `AopSelfInvocationTest` | 2 | External invocation and self-invocation behavior |
+| **New tests** | **8** | |
+| **Total tests (Labs 1–4)** | **38** | |
+
+The advice logic is tested directly using mocked `ProceedingJoinPoint` or `JoinPoint` objects without starting the full Spring application.
+
+A separate test uses a minimal Spring AOP context to demonstrate the difference between external method calls and self-invocation.
+
+Run all tests:
+
+```bash
+mvn clean verify
+```
+
+### Screenshots
+
+| Evidence | Screenshot |
+|----------|------------|
+| Successful Maven test execution | [1.png](screenshots/lab-04/1.png) |
+| External invocation triggers the aspect | [2.png](screenshots/lab-04/2.png) |
+| Self-invocation bypasses the aspect | [3.png](screenshots/lab-04/3.png) |
+| Invalid task ID returns HTTP 400 | [4.png](screenshots/lab-04/4.png) |
+| Successful task creation | [5.png](screenshots/lab-04/5.png) |
+| Audit history containing the created task | [6.png](screenshots/lab-04/6.png) |
 
 
 ## Notes

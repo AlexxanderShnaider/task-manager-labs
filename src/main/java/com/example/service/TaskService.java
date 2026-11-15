@@ -3,6 +3,9 @@ package com.example.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.example.annotation.MeasureTaskDuration;
+import com.example.annotation.RequirePositiveTaskId;
+import com.example.annotation.TaskAudit;
 import com.example.dto.TaskDto;
 import com.example.entity.Task;
 import com.example.mapper.TaskMapper;
@@ -18,19 +21,23 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final TaskMapper taskMapper;
 
+    @MeasureTaskDuration
     public List<TaskDto> getAllTasks() {
         return taskRepository.findAll().stream()
                 .map(taskMapper::toDto)
                 .collect(Collectors.toList());
     }
 
+    @RequirePositiveTaskId
     public TaskDto getTaskById(Long id) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task with ID " + id + " not found"));
+                .orElseThrow(() -> new RuntimeException(
+                        "Task with ID " + id + " not found"));
 
         return taskMapper.toDto(task);
     }
 
+    @TaskAudit("CREATED")
     public TaskDto createTask(TaskDto taskDto) {
         Task task = taskMapper.toEntity(taskDto);
         Task savedTask = taskRepository.save(task);
@@ -39,9 +46,12 @@ public class TaskService {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @RequirePositiveTaskId
+    @TaskAudit("UPDATED")
     public TaskDto updateTask(Long id, TaskDto taskDto) {
         Task existingTask = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task with ID " + id + " not found"));
+                .orElseThrow(() -> new RuntimeException(
+                        "Task with ID " + id + " not found"));
 
         existingTask.setTitle(taskDto.getTitle());
         existingTask.setDescription(taskDto.getDescription());
@@ -52,6 +62,8 @@ public class TaskService {
         return taskMapper.toDto(updatedTask);
     }
 
+    @RequirePositiveTaskId
+    @TaskAudit("DELETED")
     public void deleteTask(Long id) {
         taskRepository.deleteById(id);
     }
